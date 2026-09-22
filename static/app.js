@@ -21,14 +21,61 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableBody = document.getElementById('tableBody');
     const tableEmptyState = document.getElementById('tableEmptyState');
 
-    // Default Sample CSV
+    // Team Alias Dictionary
+    const TEAM_ALIASES = {
+        'BAL': ['BAL', 'BALTIMORE', 'ORIOLES', 'RAVENS'],
+        'TOR': ['TOR', 'TORONTO', 'BLUE JAYS'],
+        'LAD': ['LAD', 'LOS ANGELES', 'DODGERS', 'LA DODGERS'],
+        'SD':  ['SD', 'SAN DIEGO', 'PADRES'],
+        'NYY': ['NYY', 'NEW YORK YANKEES', 'YANKEES', 'NY YANKEES'],
+        'BOS': ['BOS', 'BOSTON', 'RED SOX'],
+        'ATL': ['ATL', 'ATLANTA', 'BRAVES', 'FALCONS'],
+        'CIN': ['CIN', 'CINCINNATI', 'REDS', 'BENGALS'],
+        'PIT': ['PIT', 'PITTSBURGH', 'PIRATES', 'STEELERS'],
+        'SF':  ['SF', 'SAN FRANCISCO', 'GIANTS', '49ERS'],
+        'ARI': ['ARI', 'ARIZONA', 'DIAMONDBACKS', 'CARDINALS'],
+        'IND': ['IND', 'INDIANAPOLIS', 'COLTS'],
+        'HOU': ['HOU', 'HOUSTON', 'ASTROS', 'TEXANS'],
+        'COL': ['COL', 'COLORADO', 'ROCKIES'],
+        'MIL': ['MIL', 'MILWAUKEE', 'BREWERS'],
+        'TBL': ['TBL', 'TAMPA BAY', 'RAYS'],
+        'FLA': ['FLA', 'FLORIDA', 'PANTHERS'],
+        'PHI': ['PHI', 'PHILADELPHIA', 'PHILLIES', 'EAGLES'],
+        'CHC': ['CHC', 'CHICAGO CUBS', 'CUBS'],
+        'CWS': ['CWS', 'CHICAGO WHITE SOX', 'WHITE SOX'],
+        'CLE': ['CLE', 'CLEVELAND', 'GUARDIANS', 'BROWNS'],
+        'DET': ['DET', 'DETROIT', 'TIGERS', 'LIONS'],
+        'KC':  ['KC', 'KANSAS CITY', 'ROYALS', 'CHIEFS'],
+        'MIN': ['MIN', 'MINNESOTA', 'TWINS', 'VIKINGS'],
+        'NYM': ['NYM', 'NEW YORK METS', 'METS'],
+        'SEA': ['SEA', 'SEATTLE', 'MARINERS', 'SEAHAWKS'],
+        'TEX': ['TEX', 'TEXAS', 'RANGERS'],
+        'WAS': ['WAS', 'WASHINGTON', 'NATIONALS'],
+        'WSH': ['WSH', 'WASHINGTON', 'COMMANDERS'],
+        'GB':  ['GB', 'GREEN BAY', 'PACKERS'],
+        'MIA': ['MIA', 'MIAMI', 'MARLINS', 'DOLPHINS'],
+        'NE':  ['NE', 'NEW ENGLAND', 'PATRIOTS'],
+        'DEN': ['DEN', 'DENVER', 'BRONCOS'],
+        'LV':  ['LV', 'LAS VEGAS', 'RAIDERS'],
+        'LAC': ['LAC', 'LOS ANGELES CHARGERS', 'CHARGERS'],
+        'DAL': ['DAL', 'DALLAS', 'COWBOYS'],
+        'NYG': ['NYG', 'NEW YORK GIANTS', 'GIANTS'],
+        'CHI': ['CHI', 'CHICAGO BEARS', 'BEARS'],
+        'NO':  ['NO', 'NEW ORLEANS', 'SAINTS'],
+        'TB':  ['TB', 'TAMPA BAY BUCCANEERS', 'BUCCANEERS'],
+        'LAR': ['LAR', 'LOS ANGELES RAMS', 'RAMS']
+    };
+
     const DEFAULT_CSV = `LEAGUE,DATE,HOME,AWAY,DOUBLEHEADER,SECTION,MARKET,SELECTOR,POINT,SIDE,WIN %
-MLB,20260922,LAD,SD,0,spread,spread,LAD,1.5,LAD,0.695
-MLB,20260922,BAL,TOR,0,spread,spread,BAL,1.5,BAL,0.687
-MLB,20260922,NYY,BOS,0,head_to_head,h2h,NYY,,NYY,0.582
-MLB,20260922,ATL,CIN,0,total,total,,9.5,Under,0.530
-NFL,20260927,PIT,CIN,0,head_to_head,h2h,PIT,,PIT,0.626
-NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
+MLB,20260922,BAL,TOR,,head_to_head,h2h,,home,0.5333
+MLB,20260922,BAL,TOR,,head_to_head,h2h,,away,0.4667
+MLB,20260922,BAL,TOR,,spread,spread,,+1.5,home,0.6867
+MLB,20260922,BAL,TOR,,spread,spread,,-1.5,away,0.3133
+MLB,20260922,BAL,TOR,,total,total,,7.5,over,0.5275
+MLB,20260922,LAD,SD,,spread,spread,,+1.5,LAD,0.6950
+MLB,20260922,ATL,CIN,,total,total,,9.5,under,0.5300
+NFL,20260927,PIT,CIN,,head_to_head,h2h,,PIT,0.6260
+NFL,20260927,SF,ARI,,head_to_head,h2h,,SF,0.9110`;
 
     if (!csvTextArea.value.trim()) {
         csvTextArea.value = DEFAULT_CSV;
@@ -108,7 +155,7 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
 
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.success) {
+                    if (data && data.success) {
                         isLocalBackend = true;
                         rawLines = data.lines || [];
                         
@@ -125,12 +172,10 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
                         renderTable();
                     }
                 }
-            } catch (e) {
-                // Not running Flask backend -> fallback to client-side JS engine
-            }
+            } catch (e) {}
 
             if (!isLocalBackend) {
-                // Client-side pure JS execution for GitHub Pages
+                // Pure Client-side Execution for GitHub Pages
                 await runClientSideFetchAndMatch();
             }
 
@@ -169,62 +214,104 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
 
     // Client-side CSV Parser
     function parseCsvInput(text) {
-        if (!text) return [];
+        if (!text || !text.trim()) return [];
         const lines = text.split('\n');
         const rows = [];
-        let headerParsed = false;
+        let headers = null;
         
-        for (const line of lines) {
-            const clean = line.trim();
+        for (let i = 0; i < lines.length; i++) {
+            const clean = lines[i].trim();
             if (!clean || clean.startsWith('#')) continue;
-            if (!headerParsed && (clean.toUpperCase().includes('LEAGUE') || clean.toUpperCase().includes('WIN %'))) {
-                headerParsed = true;
+            
+            const parts = clean.split(',').map(p => p.trim());
+            const upperStr = clean.toUpperCase();
+            
+            if (!headers && (upperStr.includes('LEAGUE') || upperStr.includes('WIN %') || upperStr.includes('MARKET'))) {
+                headers = parts.map(h => h.toUpperCase());
                 continue;
             }
-            const parts = clean.split(',').map(p => p.trim());
-            if (parts.length >= 11) {
-                const winPct = parseFloat(parts[10]);
-                if (!isNaN(winPct)) {
-                    rows.push({
-                        league: parts[0],
-                        date: parts[1],
-                        home: parts[2],
-                        away: parts[3],
-                        doubleheader: parts[4],
-                        section: parts[5],
-                        market: parts[6],
-                        selector: parts[7],
-                        point: parts[8],
-                        side: parts[9],
-                        winPctDecimal: winPct > 1.0 ? winPct / 100.0 : winPct
-                    });
-                }
+
+            if (!headers) {
+                headers = ['LEAGUE', 'DATE', 'HOME', 'AWAY', 'DOUBLEHEADER', 'SECTION', 'MARKET', 'SELECTOR', 'POINT', 'SIDE', 'WIN %'];
             }
+
+            const getVal = (kw) => {
+                const idx = headers.indexOf(kw);
+                return (idx !== -1 && idx < parts.length) ? parts[idx] : '';
+            };
+
+            const league = getVal('LEAGUE') || 'MLB';
+            const date = getVal('DATE') || '20260922';
+            const home = getVal('HOME');
+            const away = getVal('AWAY');
+            const section = getVal('SECTION') || 'head_to_head';
+            const market = getVal('MARKET') || 'h2h';
+            const selector = getVal('SELECTOR');
+            const point = getVal('POINT');
+            const side = getVal('SIDE') || 'home';
+            const winStr = getVal('WIN %') || getVal('MODEL_PROB') || getVal('WIN');
+
+            const winPct = parseFloat(winStr ? winStr.replace('%', '') : '0.5');
+            if (isNaN(winPct)) continue;
+
+            const winPctDecimal = winPct > 1.0 ? winPct / 100.0 : winPct;
+
+            rows.push({
+                league: league.toUpperCase(),
+                date: date,
+                home: home.toUpperCase(),
+                away: away.toUpperCase(),
+                section: section.toLowerCase(),
+                market: market.toLowerCase(),
+                selector: selector,
+                point: point,
+                side: side.toLowerCase(),
+                winPctDecimal: winPctDecimal
+            });
         }
         return rows;
     }
 
-    // Client-side Kalshi Fetcher
+    // Client-side Kalshi Fetcher (with CORS Proxy Chain)
     async function fetchKalshiClientSide(apiKey) {
         const seriesList = ['KXNFLGAME', 'KXMLBGAME', 'KXNBAGAME', 'KXNHLGAME', 'KXEPLGAME', 'KXNFLTOTAL', 'KXMLBTOTAL', 'KXNBATOTAL', 'KXNHLTOTAL', 'KXNFLSPREAD', 'KXMLBSPREAD', 'KXNBASPREAD', 'KXNHLSPREAD'];
-        let markets = [];
+        let rawMarkets = [];
 
         for (const s of seriesList) {
-            const url = `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${s}&status=open&limit=200`;
+            const targetUrl = `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${s}&status=open&limit=200`;
             try {
-                let res = await fetch(url).catch(() => null);
-                if (!res || !res.ok) {
-                    res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`).catch(() => null);
+                let data = null;
+                // Direct fetch
+                let res = await fetch(targetUrl).catch(() => null);
+                if (res && res.ok) {
+                    data = await res.json();
+                } else {
+                    // AllOrigins CORS Proxy
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                    res = await fetch(proxyUrl).catch(() => null);
+                    if (res && res.ok) data = await res.json();
                 }
+
+                if (data && data.markets) {
+                    rawMarkets.push(...data.markets);
+                }
+            } catch (e) {}
+        }
+
+        // Fallback open query if series empty
+        if (rawMarkets.length === 0) {
+            const fallbackUrl = `https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=250`;
+            try {
+                let res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(fallbackUrl)}`).catch(() => null);
                 if (res && res.ok) {
                     const data = await res.json();
-                    if (data && data.markets) markets.push(...data.markets);
+                    if (data && data.markets) rawMarkets.push(...data.markets);
                 }
             } catch (e) {}
         }
 
         const unique = new Map();
-        markets.forEach(m => {
+        rawMarkets.forEach(m => {
             if (m && m.ticker) unique.set(m.ticker, m);
         });
 
@@ -232,6 +319,7 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
             let price = 0;
             if (m.yes_ask_dollars !== undefined && parseFloat(m.yes_ask_dollars) > 0) price = parseFloat(m.yes_ask_dollars);
             else if (m.last_price_dollars !== undefined && parseFloat(m.last_price_dollars) > 0) price = parseFloat(m.last_price_dollars);
+            else if (m.yes_bid_dollars !== undefined && parseFloat(m.yes_bid_dollars) > 0) price = parseFloat(m.yes_bid_dollars);
             else if (m.yes_ask !== undefined && m.yes_ask > 0) price = m.yes_ask > 1 ? m.yes_ask / 100 : m.yes_ask;
 
             return {
@@ -239,6 +327,8 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
                 ticker: m.ticker,
                 title: m.title || m.ticker,
                 price: price,
+                floor_strike: m.floor_strike,
+                cap_strike: m.cap_strike,
                 url: `https://kalshi.com/markets/${m.ticker}`
             };
         });
@@ -248,28 +338,36 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
 
     // Client-side Polymarket Fetcher
     async function fetchPolymarketClientSide() {
-        const url = 'https://gamma-api.polymarket.com/markets?limit=500&active=true&closed=false';
+        const url = 'https://gamma-api.polymarket.com/events?limit=100&active=true&closed=false';
         let parsed = [];
         try {
             const res = await fetch(url);
             if (res.ok) {
-                const raw = await res.json();
-                if (Array.isArray(raw)) {
-                    parsed = raw.map(m => {
-                        let price = 0.5;
-                        try {
-                            if (typeof m.outcomePrices === 'string') {
-                                const arr = JSON.parse(m.outcomePrices);
-                                price = parseFloat(arr[0]) || 0.5;
-                            }
-                        } catch (e) {}
-                        return {
-                            exchange: 'polymarket',
-                            ticker: m.slug || m.id,
-                            title: m.question || m.groupItemTitle || m.slug,
-                            price: price,
-                            url: `https://polymarket.com/market/${m.slug}`
-                        };
+                const events = await res.json();
+                if (Array.isArray(events)) {
+                    events.forEach(evt => {
+                        const eventTitle = evt.title || '';
+                        const markets = evt.markets || [];
+                        markets.forEach(m => {
+                            let price = 0.5;
+                            try {
+                                if (typeof m.outcomePrices === 'string') {
+                                    const arr = JSON.parse(m.outcomePrices);
+                                    price = parseFloat(arr[0]) || 0.5;
+                                } else if (Array.isArray(m.outcomePrices)) {
+                                    price = parseFloat(m.outcomePrices[0]) || 0.5;
+                                }
+                            } catch (e) {}
+
+                            const fullTitle = `${eventTitle} ${m.groupItemTitle || m.question || ''}`;
+                            parsed.push({
+                                exchange: 'polymarket',
+                                ticker: m.slug || evt.slug || m.id,
+                                title: fullTitle,
+                                price: price,
+                                url: `https://polymarket.com/event/${evt.slug}`
+                            });
+                        });
                     });
                 }
             }
@@ -277,13 +375,42 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
         return { markets: parsed, count: parsed.length };
     }
 
-    // Client-side Matcher Engine
+    // Client-side Matcher Engine with Side Resolution & Alias Matching
     function matchRowsClientSide(rows, kalshiMarkets, polyMarkets) {
         return rows.map(r => {
-            const kMatch = findBestMatch(r, kalshiMarkets);
-            const pMatch = findBestMatch(r, polyMarkets);
-
             const pModel = r.winPctDecimal;
+
+            // Resolve Side & Target Team Code
+            let sideRaw = (r.side || 'home').toLowerCase();
+            let targetTeamCode = '';
+            let sideDisplay = r.side || '';
+
+            if (sideRaw === 'home') {
+                targetTeamCode = r.home;
+                sideDisplay = r.home;
+            } else if (sideRaw === 'away') {
+                targetTeamCode = r.away;
+                sideDisplay = r.away;
+            } else if (sideRaw === 'over' || sideRaw === 'under') {
+                targetTeamCode = '';
+                sideDisplay = sideRaw.charAt(0).toUpperCase() + sideRaw.slice(1);
+            } else {
+                targetTeamCode = sideRaw.toUpperCase();
+                sideDisplay = targetTeamCode;
+            }
+
+            // Market Display
+            let sectionStr = (r.section || r.market || 'h2h').toLowerCase();
+            let marketDisplay = 'H2H';
+            if (sectionStr.includes('spread')) {
+                marketDisplay = r.point ? `SPREAD (${r.point})` : 'SPREAD';
+            } else if (sectionStr.includes('total')) {
+                marketDisplay = r.point ? `TOTAL (${r.point})` : 'TOTAL';
+            }
+
+            // Match Kalshi & Polymarket
+            const kMatch = findBestMatchClientSide(r, targetTeamCode, kalshiMarkets);
+            const pMatch = findBestMatchClientSide(r, targetTeamCode, polyMarkets);
 
             // Date Format
             let dateFormatted = 'Sep 22';
@@ -294,15 +421,7 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
                 dateFormatted = `${months[m] || 'Sep'} ${d}`;
             }
 
-            // Market Display
-            let marketDisplay = (r.market || 'H2H').toUpperCase();
-            if (marketDisplay === 'SPREAD') marketDisplay = `SPREAD (${r.point || '1.5'})`;
-            else if (marketDisplay === 'TOTAL') marketDisplay = `TOTAL (${r.point || '9.5'})`;
-
-            // Side Display
-            let sideDisplay = r.side || r.home;
-
-            // Kalshi Prob
+            // Kalshi Edge
             let kalshiProbPct = '—';
             let kalshiEdgePct = '—';
             let kalshiEdgeVal = -999;
@@ -313,7 +432,7 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
                 kalshiEdgePct = kalshiEdgeVal > 0 ? `+${kalshiEdgeVal.toFixed(1)}%` : `${kalshiEdgeVal.toFixed(1)}%`;
             }
 
-            // Poly Prob
+            // Poly Edge
             let polyProbPct = '—';
             let polyEdgePct = '—';
             let polyEdgeVal = -999;
@@ -327,13 +446,19 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
             // Half Kelly
             let halfKellyPct = '—';
             let halfKellyVal = 0;
-            const bestProb = Math.min(kMatch ? kMatch.price : 1.0, pMatch ? pMatch.price : 1.0);
-            if (bestProb < 1.0 && pModel > bestProb) {
-                const fullKelly = (pModel - bestProb) / (1 - bestProb);
-                const halfKelly = fullKelly * 0.5;
-                if (halfKelly > 0) {
-                    halfKellyVal = parseFloat((halfKelly * 100).toFixed(1));
-                    halfKellyPct = `${halfKellyVal.toFixed(1)}%`;
+            const validProbs = [];
+            if (kMatch && kMatch.price > 0) validProbs.push(kMatch.price);
+            if (pMatch && pMatch.price > 0) validProbs.push(pMatch.price);
+
+            if (validProbs.length > 0) {
+                const bestMarketProb = Math.min(...validProbs);
+                if (bestMarketProb < 1.0 && pModel > bestMarketProb) {
+                    const fullKelly = (pModel - bestMarketProb) / (1.0 - bestMarketProb);
+                    const halfKelly = fullKelly * 0.5;
+                    if (halfKelly > 0) {
+                        halfKellyVal = parseFloat((halfKelly * 100).toFixed(1));
+                        halfKellyPct = `${halfKellyVal.toFixed(1)}%`;
+                    }
                 }
             }
 
@@ -362,36 +487,67 @@ NFL,20260927,SF,ARI,0,head_to_head,h2h,SF,,SF,0.911`;
         });
     }
 
-    function findBestMatch(row, markets) {
+    function findBestMatchClientSide(row, targetTeamCode, markets) {
         if (!markets || markets.length === 0) return null;
-        const home = (row.home || '').toUpperCase();
-        const away = (row.away || '').toUpperCase();
-        const side = (row.side || '').toUpperCase();
+        
+        const homeCode = (row.home || '').toUpperCase();
+        const awayCode = (row.away || '').toUpperCase();
         const section = (row.section || row.market || '').toLowerCase();
-        const pointVal = row.point ? parseFloat(row.point) : null;
+        const pointVal = row.point ? parseFloat(row.point.replace('+', '')) : null;
+        const sideRaw = (row.side || '').toLowerCase();
+
+        const homeAliases = TEAM_ALIASES[homeCode] || [homeCode];
+        const awayAliases = TEAM_ALIASES[awayCode] || [awayCode];
+        const targetAliases = TEAM_ALIASES[targetTeamCode] || (targetTeamCode ? [targetTeamCode] : []);
 
         let best = null;
-        let highest = 0;
+        let highestScore = 0;
 
         for (const m of markets) {
             let score = 0;
-            const title = (m.title || '').toUpperCase();
-            const ticker = (m.ticker || '').toUpperCase();
+            const titleUpper = (m.title || '').toUpperCase();
+            const tickerUpper = (m.ticker || '').toUpperCase();
 
-            if (home && (title.includes(home) || ticker.includes(home))) score += 150;
-            if (away && (title.includes(away) || ticker.includes(away))) score += 150;
-            if (side && (title.includes(side) || ticker.includes(side))) score += 200;
+            // Match Home & Away Team Aliases
+            const matchHome = homeAliases.some(a => titleUpper.includes(a) || tickerUpper.includes(a));
+            const matchAway = awayAliases.some(a => titleUpper.includes(a) || tickerUpper.includes(a));
 
-            if (score > highest && score >= 250) {
-                highest = score;
+            if (matchHome) score += 150;
+            if (matchAway) score += 150;
+
+            // Match Target Side Team
+            if (targetAliases.length > 0) {
+                const matchTarget = targetAliases.some(a => titleUpper.includes(a) || tickerUpper.includes(a));
+                if (matchTarget) score += 200;
+            }
+
+            // Total Over/Under Match
+            if (section.includes('total')) {
+                if (sideRaw === 'over' && (titleUpper.includes('OVER') || tickerUpper.includes('OVER'))) score += 100;
+                if (sideRaw === 'under' && (titleUpper.includes('UNDER') || tickerUpper.includes('UNDER'))) score += 100;
+            }
+
+            // Strike Point Tolerance Match (0.1 tolerance)
+            if (pointVal !== null && !isNaN(pointVal)) {
+                const absPt = Math.abs(pointVal);
+                if (m.floor_strike !== undefined && Math.abs(parseFloat(m.floor_strike) - absPt) <= 0.1) {
+                    score += 150;
+                } else if (titleUpper.includes(absPt.toString()) || tickerUpper.includes(absPt.toString())) {
+                    score += 150;
+                }
+            }
+
+            if (score > highestScore && score >= 250) {
+                highestScore = score;
                 best = m;
             }
         }
 
         if (!best) return null;
 
+        // Spread underdog price inversion
         let price = best.price;
-        const isUnderdogSpread = section.includes('spread') && (side.includes('+') || (pointVal !== null && pointVal > 0));
+        const isUnderdogSpread = section.includes('spread') && (sideRaw.includes('+') || (pointVal !== null && pointVal > 0));
         if (isUnderdogSpread && price > 0 && price < 1) {
             price = Math.round((1.0 - price) * 1000) / 1000;
         }
