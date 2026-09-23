@@ -60,5 +60,10 @@ def health():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
-    print(f"Starting 8rain Station EV Checker on http://localhost:{port}")
-    app.run(host='0.0.0.0', port=port, debug=True)
+    try:
+        print(f"Starting 8rain Station EV Checker on http://localhost:{port}")
+        app.run(host='0.0.0.0', port=port, debug=False)
+    except OSError:
+        port = 5002
+        print(f"Port 5001 occupied! Switching to http://localhost:{port}")
+        app.run(host='0.0.0.0', port=port, debug=False)
